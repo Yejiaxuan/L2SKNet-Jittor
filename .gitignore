@@ -30,3 +30,9 @@ env/
 # System files
 .DS_Store
 Thumbs.db 
+
+images/
+masks/
+
+log/
+result/
