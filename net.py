@@ -1,4 +1,5 @@
-from torch import nn
+import jittor as jt
+import jittor.nn as nn
 
 import os
 from loss import SoftIoULoss
@@ -24,7 +25,7 @@ class Net(nn.Module):
         elif model_name == 'L2SKNet_1D_FPN':
             self.model = L2SKNet_1D_FPN()
 
-    def forward(self, img):
+    def execute(self, img):
         return self.model(img)
 
     def loss(self, pred, gt_mask):
