@@ -1,4 +1,5 @@
-import torch.nn as nn
+import jittor as jt
+import jittor.nn as nn
 
 
 class AddFuseLayer(nn.Module):
@@ -14,10 +15,10 @@ class AddFuseLayer(nn.Module):
         self.feature_high = nn.Sequential(
             nn.Conv2d(self.high_channels, self.out_channels, 1, 1, 0),  # bz,ch,h,w -> bz,cl,h,w
             nn.BatchNorm2d(out_channels),
-            nn.ReLU(True),
+            nn.ReLU(),
         )
 
-    def forward(self, xh, xl):
+    def execute(self, xh, xl):
         xh = self.feature_high(xh)  # bz,ch,h,w -> bz,cl,h,w
 
         out = xh + xl
