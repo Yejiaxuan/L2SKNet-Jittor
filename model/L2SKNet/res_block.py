@@ -1,6 +1,5 @@
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+import jittor as jt
+import jittor.nn as nn
 
 
 class ResidualBlock(nn.Module):
@@ -9,7 +8,7 @@ class ResidualBlock(nn.Module):
         self.body = nn.Sequential(
             nn.Conv2d(in_channels, out_channels, 3, stride, 1, bias=False),
             nn.BatchNorm2d(out_channels),
-            nn.ReLU(True),
+            nn.ReLU(),
 
             nn.Conv2d(out_channels, out_channels, 3, 1, 1, bias=False),
             nn.BatchNorm2d(out_channels),
@@ -23,12 +22,12 @@ class ResidualBlock(nn.Module):
         else:
             self.shortcut = None
 
-    def forward(self, x):
+    def execute(self, x):
         residual = x
         x = self.body(x)
 
         if self.shortcut:
             residual = self.shortcut(residual)
 
-        out = F.relu(x + residual, True)
+        out = jt.nn.relu(x + residual)
         return out
