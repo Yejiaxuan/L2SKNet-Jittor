@@ -1,12 +1,11 @@
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+import jittor as jt
+import jittor.nn as nn
 from utils.utils import Get_gradient_nopadding
 
 class SoftIoULoss(nn.Module):
     def __init__(self):
         super(SoftIoULoss, self).__init__()
-    def forward(self, preds, gt_masks):
+    def execute(self, preds, gt_masks):
         if isinstance(preds, list) or isinstance(preds, tuple):
             loss_total = 0
             for i in range(len(preds)):
