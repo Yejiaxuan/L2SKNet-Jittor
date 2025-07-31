@@ -5,9 +5,9 @@ import os
 
 import cv2
 import numpy as np
-import torch
+import jittor as jt
 import random
-from torch.utils.data.dataset import Dataset
+from jittor.dataset import Dataset
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
@@ -56,8 +56,8 @@ class NUDTSIRSTSetLoader(Dataset):
             h, w = img.shape
 
         img, mask = img[np.newaxis,:], mask[np.newaxis,:]
-        img = torch.from_numpy(np.ascontiguousarray(img))
-        mask = torch.from_numpy(np.ascontiguousarray(mask))
+        img = jt.array(img)
+        mask = jt.array(mask)
 
         if self.mode == 'trainval':
             return img, mask
@@ -108,8 +108,8 @@ class IRSTD1KSetLoader(Dataset):
         #     h, w = img.shape
 
         img, mask = img[np.newaxis,:], mask[np.newaxis,:]
-        img = torch.from_numpy(np.ascontiguousarray(img))
-        mask = torch.from_numpy(np.ascontiguousarray(mask))
+        img = jt.array(img)
+        mask = jt.array(mask)
 
         if self.mode == 'trainval':
             return img, mask
