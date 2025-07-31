@@ -2,8 +2,7 @@ import threading
 
 import numpy
 import numpy as np
-import torch
-import torch.nn.functional as F
+import jittor as jt
 
 __all__ = ['SegmentationMetricTPFNFP']
 
@@ -33,8 +32,8 @@ class SegmentationMetricTPFNFP(object):
                 self.total_fn += fn
             return
 
-        if isinstance(preds, torch.Tensor):
-            preds = (preds.detach().numpy() > 0).astype('int64')  # P
+        if isinstance(preds, jt.Var):
+            preds = (preds.numpy() > 0).astype('int64')  # P
             labels = labels.numpy().astype('int64')  # T
             evaluate_worker(self, labels, preds)
         elif isinstance(preds, (list, tuple)):
