@@ -1,46 +1,40 @@
-import torch
+import jittor as jt
 import numpy as np
 from PIL import Image
-from torchvision import transforms
-from torch.utils.data.dataset import Dataset
 import random
 import matplotlib.pyplot as plt
 import os
 import math
-import torch.nn as nn
+import jittor.nn as nn
 from skimage import measure
-import torch.nn.functional as F
 import os
-from torch.nn import init
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
 
-def seed_pytorch(seed=42):
+def seed_jittor(seed=42):
     random.seed(seed)
     os.environ['PYTHONHASHSEED'] = str(seed)
     np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
+    jt.set_global_seed(seed)
 
 
 def weights_init_xavier(m):
     classname = m.__class__.__name__
     if classname.find('Conv2d') != -1 and classname.find('SplAtConv2d') == -1:
-        init.xavier_normal(m.weight.data)
+        jt.init.xavier_normal_(m.weight)
 
 
 def weights_init_kaiming(m):
     classname = m.__class__.__name__
     # print(classname)
     if classname.find('Conv') != -1:
-        init.kaiming_normal_(m.weight.data, a=0, mode='fan_in')
+        jt.init.kaiming_normal_(m.weight, a=0, mode='fan_in')
     elif classname.find('Linear') != -1:
-        init.kaiming_normal_(m.weight.data, a=0, mode='fan_in')
+        jt.init.kaiming_normal_(m.weight, a=0, mode='fan_in')
     elif classname.find('BatchNorm') != -1:
-        init.normal_(m.weight.data, 1.0, 0.02)
-        init.constant_(m.bias.data, 0.0)
+        jt.init.gauss_(m.weight, mean=1.0, std=0.02)
+        jt.init.constant_(m.bias, 0.0)
 
 
 class Get_gradient_nopadding(nn.Module):
@@ -52,17 +46,17 @@ class Get_gradient_nopadding(nn.Module):
         kernel_h = [[0, 0, 0],
                     [-1, 0, 1],
                     [0, 0, 0]]
-        kernel_h = torch.FloatTensor(kernel_h).unsqueeze(0).unsqueeze(0)
-        kernel_v = torch.FloatTensor(kernel_v).unsqueeze(0).unsqueeze(0)
-        self.weight_h = nn.Parameter(data=kernel_h, requires_grad=False).cuda()
-        self.weight_v = nn.Parameter(data=kernel_v, requires_grad=False).cuda()
+        kernel_h = jt.array(kernel_h).unsqueeze(0).unsqueeze(0).float32()
+        kernel_v = jt.array(kernel_v).unsqueeze(0).unsqueeze(0).float32()
+        self.weight_h = kernel_h
+        self.weight_v = kernel_v
 
-    def forward(self, x):
+    def execute(self, x):
         x0 = x[:, 0]
-        x0_v = F.conv2d(x0.unsqueeze(1), self.weight_v, padding=1)
-        x0_h = F.conv2d(x0.unsqueeze(1), self.weight_h, padding=1)
+        x0_v = nn.conv2d(x0.unsqueeze(1), self.weight_v, padding=1)
+        x0_h = nn.conv2d(x0.unsqueeze(1), self.weight_h, padding=1)
 
-        x0 = torch.sqrt(torch.pow(x0_v, 2) + torch.pow(x0_h, 2) + 1e-6)
+        x0 = jt.sqrt(jt.pow(x0_v, 2) + jt.pow(x0_h, 2) + 1e-6)
 
         return x0
 
@@ -131,18 +125,20 @@ def get_img_norm_cfg(dataset_name, dataset_dir):
 
 def get_optimizer(net, optimizer_name, scheduler_name, optimizer_settings, scheduler_settings):
     if optimizer_name == 'Adam':
-        optimizer = torch.optim.Adam(net.parameters(), lr=optimizer_settings['lr'])
+        optimizer = jt.optim.Adam(net.parameters(), lr=optimizer_settings['lr'])
     elif optimizer_name == 'Adagrad':
-        optimizer = torch.optim.Adagrad(net.parameters(), lr=optimizer_settings['lr'])
+        optimizer = jt.optim.Adagrad(net.parameters(), lr=optimizer_settings['lr'])
     elif optimizer_name == 'SGD':
-        optimizer = torch.optim.SGD(net.parameters(), lr=optimizer_settings['lr'])
+        optimizer = jt.optim.SGD(net.parameters(), lr=optimizer_settings['lr'])
 
+    # Jittor doesn't have built-in schedulers, so we'll implement basic ones
+    scheduler = None
     if scheduler_name == 'MultiStepLR':
-        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=scheduler_settings['step'],
-                                                         gamma=scheduler_settings['gamma'])
+        # You may need to implement MultiStepLR manually or use a custom scheduler
+        scheduler = {'type': 'MultiStepLR', 'milestones': scheduler_settings['step'], 'gamma': scheduler_settings['gamma']}
     elif scheduler_name == 'CosineAnnealingLR':
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=scheduler_settings['epochs'],
-                                                               eta_min=scheduler_settings['min_lr'])
+        # You may need to implement CosineAnnealingLR manually or use a custom scheduler
+        scheduler = {'type': 'CosineAnnealingLR', 'T_max': scheduler_settings['epochs'], 'eta_min': scheduler_settings['min_lr']}
 
     return optimizer, scheduler
 
