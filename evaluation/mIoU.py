@@ -1,4 +1,5 @@
 import numpy as np
+import jittor as jt
 
 class mIoU():
     
@@ -29,17 +30,24 @@ class mIoU():
         self.total_label = 0
 
 def batch_pix_accuracy(output, target):   
+    # 统一转换为numpy数组进行处理
+    if isinstance(output, jt.Var):
+        output = output.data
+    if isinstance(target, jt.Var):
+        target = target.data
+        
     if len(target.shape) == 3:
-        target = np.expand_dims(target.float(), axis=1)
+        target = np.expand_dims(target.astype(np.float32), axis=1)
     elif len(target.shape) == 4:
-        target = target.float()
+        target = target.astype(np.float32)
     else:
         raise ValueError("Unknown target dimension")
 
+    output = output.astype(np.float32)
     assert output.shape == target.shape, "Predict and Label Shape Don't Match"
-    predict = (output > 0).float()
-    pixel_labeled = (target > 0).float().sum()
-    pixel_correct = (((predict == target).float())*((target > 0)).float()).sum()
+    predict = (output > 0).astype(np.float32)
+    pixel_labeled = (target > 0).astype(np.float32).sum()
+    pixel_correct = (((predict == target).astype(np.float32))*((target > 0)).astype(np.float32)).sum()
     assert pixel_correct <= pixel_labeled, "Correct area should be smaller than Labeled"
     return pixel_correct, pixel_labeled
     
@@ -47,18 +55,26 @@ def batch_intersection_union(output, target):
     mini = 1
     maxi = 1
     nbins = 1
-    predict = (output > 0).float()
+    
+    # 统一转换为numpy数组进行处理
+    if isinstance(output, jt.Var):
+        output = output.data
+    if isinstance(target, jt.Var):
+        target = target.data
+        
+    predict = (output > 0).astype(np.float32)
     if len(target.shape) == 3:
-        target = np.expand_dims(target.float(), axis=1)
+        target = np.expand_dims(target.astype(np.float32), axis=1)
     elif len(target.shape) == 4:
-        target = target.float()
+        target = target.astype(np.float32)
     else:
         raise ValueError("Unknown target dimension")
-    intersection = predict * ((predict == target).float())
+    
+    intersection = predict * ((predict == target).astype(np.float32))
 
-    area_inter, _  = np.histogram(intersection.cpu(), bins=nbins, range=(mini, maxi))
-    area_pred,  _  = np.histogram(predict.cpu(), bins=nbins, range=(mini, maxi))
-    area_lab,   _  = np.histogram(target.cpu(), bins=nbins, range=(mini, maxi))
+    area_inter, _  = np.histogram(intersection, bins=nbins, range=(mini, maxi))
+    area_pred,  _  = np.histogram(predict, bins=nbins, range=(mini, maxi))
+    area_lab,   _  = np.histogram(target, bins=nbins, range=(mini, maxi))
     area_union     = area_pred + area_lab - area_inter
 
     assert (area_inter <= area_union).all(), \
