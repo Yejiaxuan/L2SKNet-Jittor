@@ -2,9 +2,8 @@ import argparse
 import time
 import jittor as jt
 from jittor import nn
-from jittor.dataset import DataLoader
 from net import Net
-from utils.utils import seed_pytorch, get_optimizer
+from utils.utils import seed_jittor, get_optimizer
 import numpy as np
 import os
 
@@ -14,6 +13,75 @@ from utils.datasets import IRSTD1KSetLoader
 from evaluation.mIoU import mIoU
 from evaluation.pd_fa import PD_FA
 from evaluation.TPFNFP import SegmentationMetricTPFNFP
+
+import random
+
+class DataLoader:
+    def __init__(self, dataset, batch_size=1, shuffle=False, num_workers=0):
+        self.dataset = dataset
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+        self.num_workers = num_workers
+        
+    def __iter__(self):
+        indices = list(range(len(self.dataset)))
+        if self.shuffle:
+            random.shuffle(indices)
+            
+        for i in range(0, len(indices), self.batch_size):
+            batch_indices = indices[i:i + self.batch_size]
+            batch_data = []
+            for idx in batch_indices:
+                batch_data.append(self.dataset[idx])
+            
+            if len(batch_data) == 1:
+                # 单个样本的情况，直接返回（已经有正确的维度）
+                item = batch_data[0]
+                if len(item) == 2:  # 训练数据 (img, mask)
+                    img, mask = item[0], item[1]
+                    # 添加batch维度: (1, H, W) -> (1, 1, H, W)
+                    img = img.unsqueeze(0) 
+                    mask = mask.unsqueeze(0)
+                    yield (img, mask)
+                elif len(item) == 4:  # 测试数据 (img, mask, size, name)
+                    img, mask, size, name = item[0], item[1], item[2], item[3]
+                    # 添加batch维度: (1, H, W) -> (1, 1, H, W)
+                    img = img.unsqueeze(0)
+                    mask = mask.unsqueeze(0)
+                    yield (img, mask, size, name)
+            else:
+                # 多个样本的情况
+                if len(batch_data[0]) == 2:  # 训练数据
+                    batch_imgs = []
+                    batch_masks = []
+                    for item in batch_data:
+                        batch_imgs.append(item[0])  # Jittor张量 (1, H, W)
+                        batch_masks.append(item[1]) # Jittor张量 (1, H, W)
+                    
+                    # 使用Jittor的stack: (batch_size, 1, H, W)
+                    batch_imgs = jt.stack(batch_imgs, dim=0)
+                    batch_masks = jt.stack(batch_masks, dim=0)
+                    yield (batch_imgs, batch_masks)
+                    
+                elif len(batch_data[0]) == 4:  # 测试数据
+                    # 测试时通常batch_size=1，但为了完整性也处理
+                    batch_imgs = []
+                    batch_masks = []
+                    sizes = []
+                    names = []
+                    
+                    for item in batch_data:
+                        batch_imgs.append(item[0])
+                        batch_masks.append(item[1])
+                        sizes.append(item[2])
+                        names.append(item[3])
+                    
+                    batch_imgs = jt.stack(batch_imgs, dim=0)
+                    batch_masks = jt.stack(batch_masks, dim=0)
+                    yield (batch_imgs, batch_masks, sizes[0], names[0])  # 测试时通常只关心第一个
+    
+    def __len__(self):
+        return (len(self.dataset) + self.batch_size - 1) // self.batch_size
 
 # 设置jittor使用GPU
 jt.flags.use_cuda = 1
@@ -44,7 +112,7 @@ parser.add_argument("--seed", type=int, default=42, help="Threshold for test")
 
 global opt
 opt = parser.parse_args()
-seed_pytorch(opt.seed)
+seed_jittor(opt.seed)
 
 
 def train():
@@ -108,9 +176,9 @@ def train():
             img, gt_mask = jt.array(img), jt.array(gt_mask)
             if img.shape[0] == 1:
                 continue
-            pred = net.forward(img)
+            pred = net.execute(img)
             loss = net.loss(pred, gt_mask)
-            total_loss_epoch.append(loss.numpy())
+            total_loss_epoch.append(loss.item())
 
             optimizer.zero_grad()
             optimizer.backward(loss)
@@ -153,15 +221,15 @@ def test_with_save(save_pth, idx_epoch, total_loss_list, net_state_dict):
     for idx_iter, (img, gt_mask, size, _) in enumerate(test_loader):
         with jt.no_grad():
             img = jt.array(img)
-            pred = net.forward(img)
+            pred = net.execute(img)
             pred = pred[:, :, :size[0], :size[1]]
 
         gt_mask = gt_mask[:, :, :size[0], :size[1]]
 
-        eval_mIoU.update((pred > opt.threshold).numpy(), gt_mask)
-        eval_PD_FA.update(pred[0, 0, :, :].numpy(), gt_mask[0, 0, :, :].numpy(), size)
-        eval_mIoU_P_R_F.update(labels=gt_mask[0, 0, :, :].numpy(),
-                               preds=pred[0, 0, :, :].numpy())
+        eval_mIoU.update((pred > opt.threshold).data, gt_mask)
+        eval_PD_FA.update(pred[0, 0, :, :].data, gt_mask[0, 0, :, :].data, size)
+        eval_mIoU_P_R_F.update(labels=gt_mask[0, 0, :, :].data,
+                               preds=pred[0, 0, :, :].data)
 
     Ying_pixAcc, Ying_mIoU = eval_mIoU.get()
     pd, fa = eval_PD_FA.get()
