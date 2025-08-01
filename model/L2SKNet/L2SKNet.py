@@ -1,6 +1,5 @@
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.utils.data
+import jittor as jt
+import jittor.nn as nn
 
 from .fusion import AddFuseLayer
 from .res_block import ResidualBlock
@@ -15,12 +14,12 @@ class _FCNHead(nn.Module):
         self.block = nn.Sequential(
             nn.Conv2d(in_channels, inter_channels, 3, 1, 1, bias=False),
             nn.BatchNorm2d(inter_channels),
-            nn.ReLU(True),
+            nn.ReLU(),
             nn.Dropout(0.1),
             nn.Conv2d(inter_channels, out_channels, 1, 1, 0)
         )
 
-    def forward(self, x):
+    def execute(self, x):
         return self.block(x)
 
 
@@ -47,12 +46,12 @@ class conv_block(nn.Module):
         self.conv = nn.Sequential(
             nn.Conv2d(in_ch, out_ch, kernel_size=3, stride=1, padding=1, bias=True),
             nn.BatchNorm2d(out_ch),
-            nn.ReLU(inplace=True),
+            nn.ReLU(),
             nn.Conv2d(out_ch, out_ch, kernel_size=3, stride=1, padding=1, bias=True),
             nn.BatchNorm2d(out_ch),
-            nn.ReLU(inplace=True))
+            nn.ReLU())
 
-    def forward(self, x):
+    def execute(self, x):
         x = self.conv(x)
         return x
 
@@ -65,13 +64,13 @@ class up_conv(nn.Module):
     def __init__(self, in_ch, out_ch):
         super(up_conv, self).__init__()
         self.up = nn.Sequential(
-            nn.Upsample(scale_factor=2),
+            nn.Upsample(scale_factor=2, mode='nearest'),
             nn.Conv2d(in_ch, out_ch, kernel_size=3, stride=1, padding=1, bias=True),
             nn.BatchNorm2d(out_ch),
-            nn.ReLU(inplace=True)
+            nn.ReLU()
         )
 
-    def forward(self, x):
+    def execute(self, x):
         x = self.up(x)
         return x
 
@@ -97,52 +96,52 @@ class L2SKNet_FPN(nn.Module):
         self.contrast0_0 = nn.Sequential(
             LLSKM_d(channels[0], kernel_size=9, padding=8, dilation=2),
             nn.BatchNorm2d(channels[0]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast0_1 = nn.Sequential(
             LLSKM_d(channels[0], kernel_size=5, padding=4, dilation=2),
             nn.BatchNorm2d(channels[0]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast0_2 = nn.Sequential(
             LLSKM_d(channels[0], kernel_size=3, padding=2, dilation=2),
             nn.BatchNorm2d(channels[0]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast0_3 = nn.Sequential(
             LLSKM(channels[0], kernel_size=3, padding=1),
             nn.BatchNorm2d(channels[0]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast1_0 = nn.Sequential(
             LLSKM_d(channels[1], kernel_size=5, padding=4, dilation=2),
             nn.BatchNorm2d(channels[1]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast1_1 = nn.Sequential(
             LLSKM_d(channels[1], kernel_size=3, padding=2, dilation=2),
             nn.BatchNorm2d(channels[1]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast1_2 = nn.Sequential(
             LLSKM(channels[1], kernel_size=3, padding=1),
             nn.BatchNorm2d(channels[1]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast2_0 = nn.Sequential(
             LLSKM_d(channels[2], kernel_size=3, padding=2, dilation=2),
             nn.BatchNorm2d(channels[2]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast2_1 = nn.Sequential(
             LLSKM(channels[2], kernel_size=3, padding=1),
             nn.BatchNorm2d(channels[2]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast3 = nn.Sequential(
             LLSKM(channels[3], kernel_size=3, padding=1),
             nn.BatchNorm2d(channels[3]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrConV_0 = nn.Sequential(
             nn.Conv2d(channels[0], channels[0], 3, 1, 1, bias=False),
@@ -166,7 +165,7 @@ class L2SKNet_FPN(nn.Module):
 
         self.head = _FCNHead(channels[0], 1)
 
-    def forward(self, x):
+    def execute(self, x):
         _, _, hei, wid = x.shape
 
         c0 = self.layer0(x)
@@ -198,16 +197,16 @@ class L2SKNet_FPN(nn.Module):
 
         c3 = self.contrast3(c3)
 
-        out = F.interpolate(c3, size=[c2_hei, c2_wid], mode='bilinear')
+        out = jt.nn.interpolate(c3, size=[c2_hei, c2_wid], mode='bilinear')
         out = self.fuse32(out, c2)
-        out = F.interpolate(out, size=[c1_hei, c1_wid], mode='bilinear')
+        out = jt.nn.interpolate(out, size=[c1_hei, c1_wid], mode='bilinear')
         out = self.fuse21(out, c1)
-        out = F.interpolate(out, size=[c0_hei, c0_wid], mode='bilinear')
+        out = jt.nn.interpolate(out, size=[c0_hei, c0_wid], mode='bilinear')
         out = self.fuse10(out, c0)
 
         out = self.head(out)
 
-        return out.sigmoid()
+        return jt.sigmoid(out)
 
 
 class L2SKNet_1D_FPN(nn.Module):
@@ -231,52 +230,52 @@ class L2SKNet_1D_FPN(nn.Module):
         self.contrast0_0 = nn.Sequential(
             LLSKM_1D(channels[0], kernel_size=17, padding=8),
             nn.BatchNorm2d(channels[0]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast0_1 = nn.Sequential(
             LLSKM_1D(channels[0], kernel_size=9, padding=4),
             nn.BatchNorm2d(channels[0]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast0_2 = nn.Sequential(
             LLSKM_1D(channels[0], kernel_size=5, padding=2),
             nn.BatchNorm2d(channels[0]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast0_3 = nn.Sequential(
             LLSKM_1D(channels[0], kernel_size=3, padding=1),
             nn.BatchNorm2d(channels[0]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast1_0 = nn.Sequential(
             LLSKM_1D(channels[1], kernel_size=9, padding=4),
             nn.BatchNorm2d(channels[1]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast1_1 = nn.Sequential(
             LLSKM_1D(channels[1], kernel_size=5, padding=2),
             nn.BatchNorm2d(channels[1]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast1_2 = nn.Sequential(
             LLSKM_1D(channels[1], kernel_size=3, padding=1),
             nn.BatchNorm2d(channels[1]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast2_0 = nn.Sequential(
             LLSKM_1D(channels[2], kernel_size=5, padding=2),
             nn.BatchNorm2d(channels[2]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast2_1 = nn.Sequential(
             LLSKM_1D(channels[2], kernel_size=3, padding=1),
             nn.BatchNorm2d(channels[2]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast3 = nn.Sequential(
             LLSKM_1D(channels[3], kernel_size=3, padding=1),
             nn.BatchNorm2d(channels[3]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrConV_0 = nn.Sequential(
             nn.Conv2d(channels[0], channels[0], 3, 1, 1, bias=False),
@@ -300,7 +299,7 @@ class L2SKNet_1D_FPN(nn.Module):
 
         self.head = _FCNHead(channels[0], 1)
 
-    def forward(self, x):
+    def execute(self, x):
         _, _, hei, wid = x.shape
 
         c0 = self.layer0(x)
@@ -332,17 +331,16 @@ class L2SKNet_1D_FPN(nn.Module):
 
         c3 = self.contrast3(c3)
 
-        out = F.interpolate(c3, size=[c2_hei, c2_wid], mode='bilinear')
+        out = jt.nn.interpolate(c3, size=[c2_hei, c2_wid], mode='bilinear')
         out = self.fuse32(out, c2)
-        out = F.interpolate(out, size=[c1_hei, c1_wid], mode='bilinear')
+        out = jt.nn.interpolate(out, size=[c1_hei, c1_wid], mode='bilinear')
         out = self.fuse21(out, c1)
-        out = F.interpolate(out, size=[c0_hei, c0_wid], mode='bilinear')
+        out = jt.nn.interpolate(out, size=[c0_hei, c0_wid], mode='bilinear')
         out = self.fuse10(out, c0)
 
         out = self.head(out)
 
-        return out.sigmoid()
-
+        return jt.sigmoid(out)
 
 class L2SKNet_UNet(nn.Module):
     """
@@ -359,52 +357,52 @@ class L2SKNet_UNet(nn.Module):
         self.contrast0_0 = nn.Sequential(
             LLSKM_d(filters[0], kernel_size=9, padding=8, dilation=2),
             nn.BatchNorm2d(filters[0]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast0_1 = nn.Sequential(
             LLSKM_d(filters[0], kernel_size=5, padding=4, dilation=2),
             nn.BatchNorm2d(filters[0]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast0_2 = nn.Sequential(
             LLSKM_d(filters[0], kernel_size=3, padding=2, dilation=2),
             nn.BatchNorm2d(filters[0]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast0_3 = nn.Sequential(
             LLSKM(filters[0], kernel_size=3, padding=1),
             nn.BatchNorm2d(filters[0]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast1_0 = nn.Sequential(
             LLSKM_d(filters[1], kernel_size=5, padding=4, dilation=2),
             nn.BatchNorm2d(filters[1]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast1_1 = nn.Sequential(
             LLSKM_d(filters[1], kernel_size=3, padding=2, dilation=2),
             nn.BatchNorm2d(filters[1]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast1_2 = nn.Sequential(
             LLSKM(filters[1], kernel_size=3, padding=1),
             nn.BatchNorm2d(filters[1]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast2_0 = nn.Sequential(
             LLSKM_d(filters[2], kernel_size=3, padding=2, dilation=2),
             nn.BatchNorm2d(filters[2]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast2_1 = nn.Sequential(
             LLSKM(filters[2], kernel_size=3, padding=1),
             nn.BatchNorm2d(filters[2]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast3 = nn.Sequential(
             LLSKM(filters[3], kernel_size=3, padding=1),
             nn.BatchNorm2d(filters[3]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrConV_0 = nn.Sequential(
             nn.Conv2d(filters[0], filters[0], kernel_size=3, stride=1, padding=1, bias=False),
@@ -440,9 +438,9 @@ class L2SKNet_UNet(nn.Module):
         self.Up_conv2 = conv_block(filters[1], filters[0])
         self.Conv = nn.Conv2d(filters[0], out_ch, kernel_size=1, stride=1, padding=0)
 
-        self.active = torch.nn.Sigmoid()
+        self.active = nn.Sigmoid()
 
-    def forward(self, x):
+    def execute(self, x):
         e1 = self.Conv1(x)
         e2 = self.Maxpool1(e1)
         e2 = self.Conv2(e2)
@@ -472,13 +470,13 @@ class L2SKNet_UNet(nn.Module):
         e4 = self.contrast3(e4)
 
         d4 = self.Up4(e4)
-        d4 = torch.cat((e3, d4), dim=1)
+        d4 = jt.concat((e3, d4), dim=1)
         d4 = self.Up_conv4(d4)
         d3 = self.Up3(d4)
-        d3 = torch.cat((e2, d3), dim=1)
+        d3 = jt.concat((e2, d3), dim=1)
         d3 = self.Up_conv3(d3)
         d2 = self.Up2(d3)
-        d2 = torch.cat((e1, d2), dim=1)
+        d2 = jt.concat((e1, d2), dim=1)
         d2 = self.Up_conv2(d2)
         out = self.Conv(d2)
 
@@ -502,52 +500,52 @@ class L2SKNet_1D_UNet(nn.Module):
         self.contrast0_0 = nn.Sequential(
             LLSKM_1D(filters[0], kernel_size=17, padding=8),
             nn.BatchNorm2d(filters[0]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast0_1 = nn.Sequential(
             LLSKM_1D(filters[0], kernel_size=9, padding=4),
             nn.BatchNorm2d(filters[0]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast0_2 = nn.Sequential(
             LLSKM_1D(filters[0], kernel_size=5, padding=2),
             nn.BatchNorm2d(filters[0]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast0_3 = nn.Sequential(
             LLSKM_1D(filters[0], kernel_size=3, padding=1),
             nn.BatchNorm2d(filters[0]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast1_0 = nn.Sequential(
             LLSKM_1D(filters[1], kernel_size=9, padding=4),
             nn.BatchNorm2d(filters[1]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast1_1 = nn.Sequential(
             LLSKM_1D(filters[1], kernel_size=5, padding=2),
             nn.BatchNorm2d(filters[1]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast1_2 = nn.Sequential(
             LLSKM_1D(filters[1], kernel_size=3, padding=1),
             nn.BatchNorm2d(filters[1]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast2_0 = nn.Sequential(
             LLSKM_1D(filters[2], kernel_size=5, padding=2),
             nn.BatchNorm2d(filters[2]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast2_1 = nn.Sequential(
             LLSKM_1D(filters[2], kernel_size=3, padding=1),
             nn.BatchNorm2d(filters[2]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrast3 = nn.Sequential(
             LLSKM_1D(filters[3], kernel_size=3, padding=1),
             nn.BatchNorm2d(filters[3]),
-            nn.LeakyReLU(0.1, inplace=True),
+            nn.LeakyReLU(0.1),
         )
         self.contrConV_0 = nn.Sequential(
             nn.Conv2d(filters[0], filters[0], kernel_size=3, stride=1, padding=1, bias=False),
@@ -583,9 +581,9 @@ class L2SKNet_1D_UNet(nn.Module):
         self.Up_conv2 = conv_block(filters[1], filters[0])
         self.Conv = nn.Conv2d(filters[0], out_ch, kernel_size=1, stride=1, padding=0)
 
-        self.active = torch.nn.Sigmoid()
+        self.active = nn.Sigmoid()
 
-    def forward(self, x):
+    def execute(self, x):
         e1 = self.Conv1(x)
         e2 = self.Maxpool1(e1)
         e2 = self.Conv2(e2)
@@ -615,13 +613,13 @@ class L2SKNet_1D_UNet(nn.Module):
         e4 = self.contrast3(e4)
 
         d4 = self.Up4(e4)
-        d4 = torch.cat((e3, d4), dim=1)
+        d4 = jt.concat((e3, d4), dim=1)
         d4 = self.Up_conv4(d4)
         d3 = self.Up3(d4)
-        d3 = torch.cat((e2, d3), dim=1)
+        d3 = jt.concat((e2, d3), dim=1)
         d3 = self.Up_conv3(d3)
         d2 = self.Up2(d3)
-        d2 = torch.cat((e1, d2), dim=1)
+        d2 = jt.concat((e1, d2), dim=1)
         d2 = self.Up_conv2(d2)
         out = self.Conv(d2)
 
