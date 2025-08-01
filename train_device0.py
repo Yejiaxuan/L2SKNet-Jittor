@@ -1,8 +1,8 @@
 import argparse
 import time
-import torch
-from torch.autograd import Variable
-from torch.utils.data import DataLoader
+import jittor as jt
+from jittor import nn
+from jittor.dataset import DataLoader
 from net import Net
 from utils.utils import seed_pytorch, get_optimizer
 import numpy as np
@@ -15,13 +15,12 @@ from evaluation.mIoU import mIoU
 from evaluation.pd_fa import PD_FA
 from evaluation.TPFNFP import SegmentationMetricTPFNFP
 
-
-# import warnings
-# warnings.filterwarnings("ignore",category=UserWarning )
+# 设置jittor使用GPU
+jt.flags.use_cuda = 1
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
-parser = argparse.ArgumentParser(description="PyTorch L2SKNet train")
+parser = argparse.ArgumentParser(description="Jittor L2SKNet train")
 
 parser.add_argument("--model_names", default='L2SKNet_UNet', type=str, nargs='+',
                     help="model_name: 'L2SKNet_UNet', 'L2SKNet_FPN', "
@@ -60,7 +59,7 @@ def train():
 
     train_loader = DataLoader(dataset=train_set, num_workers=opt.threads, batch_size=opt.batchSize, shuffle=True)
 
-    net = Net(model_name=opt.model_name).cuda(device=0)
+    net = Net(model_name=opt.model_name)
     net.train()
 
     epoch_state = 0
@@ -80,7 +79,7 @@ def train():
     if opt.resume:
         for resume_pth in opt.resume:
             if opt.dataset_name in resume_pth and opt.model_name in resume_pth:
-                ckpt = torch.load(resume_pth)
+                ckpt = jt.load(resume_pth)
                 net.load_state_dict(ckpt['state_dict'])
                 epoch_state = ckpt['epoch']
                 total_loss_list = ckpt['total_loss']
@@ -106,15 +105,15 @@ def train():
 
     for idx_epoch in range(epoch_state, opt.nEpochs):
         for idx_iter, (img, gt_mask) in enumerate(train_loader):
-            img, gt_mask = Variable(img).cuda(device=0), Variable(gt_mask).cuda(device=0)
+            img, gt_mask = jt.array(img), jt.array(gt_mask)
             if img.shape[0] == 1:
                 continue
             pred = net.forward(img)
             loss = net.loss(pred, gt_mask)
-            total_loss_epoch.append(loss.detach().cpu())
+            total_loss_epoch.append(loss.numpy())
 
             optimizer.zero_grad()
-            loss.backward()
+            optimizer.backward(loss)
             optimizer.step()
 
         scheduler.step()
@@ -142,7 +141,7 @@ def test_with_save(save_pth, idx_epoch, total_loss_list, net_state_dict):
         raise NotImplementedError
     test_loader = DataLoader(dataset=test_set, num_workers=1, batch_size=1, shuffle=False)
 
-    net = Net(model_name=opt.model_name).cuda(device=0)
+    net = Net(model_name=opt.model_name)
     net.load_state_dict(net_state_dict)
     net.eval()
 
@@ -152,17 +151,17 @@ def test_with_save(save_pth, idx_epoch, total_loss_list, net_state_dict):
     eval_mIoU_P_R_F = SegmentationMetricTPFNFP(nclass=1)
 
     for idx_iter, (img, gt_mask, size, _) in enumerate(test_loader):
-        with torch.no_grad():
-            img = Variable(img).cuda(device=0)
+        with jt.no_grad():
+            img = jt.array(img)
             pred = net.forward(img)
             pred = pred[:, :, :size[0], :size[1]]
 
         gt_mask = gt_mask[:, :, :size[0], :size[1]]
 
-        eval_mIoU.update((pred > opt.threshold).cpu(), gt_mask)
-        eval_PD_FA.update(pred[0, 0, :, :].cpu().detach().numpy(), gt_mask[0, 0, :, :].detach().numpy(), size)
-        eval_mIoU_P_R_F.update(labels=gt_mask[0, 0, :, :].detach().numpy(),
-                               preds=pred[0, 0, :, :].cpu().detach().numpy())
+        eval_mIoU.update((pred > opt.threshold).numpy(), gt_mask)
+        eval_PD_FA.update(pred[0, 0, :, :].numpy(), gt_mask[0, 0, :, :].numpy(), size)
+        eval_mIoU_P_R_F.update(labels=gt_mask[0, 0, :, :].numpy(),
+                               preds=pred[0, 0, :, :].numpy())
 
     Ying_pixAcc, Ying_mIoU = eval_mIoU.get()
     pd, fa = eval_PD_FA.get()
@@ -206,7 +205,7 @@ def test_with_save(save_pth, idx_epoch, total_loss_list, net_state_dict):
 def save_checkpoint(state, save_path):
     if not os.path.exists(os.path.dirname(save_path)):
         os.makedirs(os.path.dirname(save_path))
-    torch.save(state, save_path)
+    jt.save(state, save_path)
     return save_path
 
 
