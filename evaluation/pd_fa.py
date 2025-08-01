@@ -32,17 +32,22 @@ class PD_FA():
             area_image = np.array(coord_image[K].area)   
             self.image_area_total.append(area_image)     
 
+        # 修复bug：使用标记数组而不是直接删除元素
+        used_image_indices = set()
+        
         for i in range(len(coord_label)):
             centroid_label = np.array(list(coord_label[i].centroid))   
             for m in range(len(coord_image)):
+                if m in used_image_indices:  # 跳过已经匹配的
+                    continue
+                    
                 centroid_image = np.array(list(coord_image[m].centroid))
                 distance = np.linalg.norm(centroid_image - centroid_label)  
                 area_image = np.array(coord_image[m].area)
                 if distance < 3:
                     self.distance_match.append(distance)  
                     self.image_area_match.append(area_image)   
-
-                    del coord_image[m]
+                    used_image_indices.add(m)  # 标记为已使用
                     break
 
         self.dismatch = [x for x in self.image_area_total if x not in self.image_area_match]   
