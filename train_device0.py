@@ -2,9 +2,9 @@ import argparse
 import time
 import jittor as jt
 from jittor import nn
-from jittor.dataset import DataLoader
+from jittor.dataset import Dataset
 from net import Net
-from utils.utils import seed_pytorch, get_optimizer
+from utils.utils import seed_jittor, get_optimizer
 import numpy as np
 import os
 
@@ -14,6 +14,53 @@ from utils.datasets import IRSTD1KSetLoader
 from evaluation.mIoU import mIoU
 from evaluation.pd_fa import PD_FA
 from evaluation.TPFNFP import SegmentationMetricTPFNFP
+
+# 简单的 DataLoader 实现
+class DataLoader:
+    def __init__(self, dataset, batch_size=1, shuffle=False, num_workers=0):
+        self.dataset = dataset
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+        self.num_workers = num_workers
+        
+    def __iter__(self):
+        indices = list(range(len(self.dataset)))
+        if self.shuffle:
+            import random
+            random.shuffle(indices)
+            
+        for i in range(0, len(indices), self.batch_size):
+            batch_indices = indices[i:i + self.batch_size]
+            batch_data = []
+            for idx in batch_indices:
+                batch_data.append(self.dataset[idx])
+            
+            if len(batch_data) == 1:
+                yield batch_data[0]
+            else:
+                # 合并批次数据
+                batch_imgs = []
+                batch_masks = []
+                batch_sizes = []
+                batch_names = []
+                
+                for item in batch_data:
+                    if len(item) == 2:  # 训练数据 (img, mask)
+                        batch_imgs.append(item[0])
+                        batch_masks.append(item[1])
+                    elif len(item) == 4:  # 测试数据 (img, mask, size, name)
+                        batch_imgs.append(item[0])
+                        batch_masks.append(item[1])
+                        batch_sizes.append(item[2])
+                        batch_names.append(item[3])
+                
+                if batch_sizes:  # 测试数据
+                    yield (np.stack(batch_imgs), np.stack(batch_masks), batch_sizes[0], batch_names[0])
+                else:  # 训练数据
+                    yield (np.stack(batch_imgs), np.stack(batch_masks))
+    
+    def __len__(self):
+        return (len(self.dataset) + self.batch_size - 1) // self.batch_size
 
 # 设置jittor使用GPU
 jt.flags.use_cuda = 1
@@ -44,7 +91,7 @@ parser.add_argument("--seed", type=int, default=42, help="Threshold for test")
 
 global opt
 opt = parser.parse_args()
-seed_pytorch(opt.seed)
+seed_jittor(opt.seed)
 
 
 def train():
@@ -105,10 +152,21 @@ def train():
 
     for idx_epoch in range(epoch_state, opt.nEpochs):
         for idx_iter, (img, gt_mask) in enumerate(train_loader):
-            img, gt_mask = jt.array(img), jt.array(gt_mask)
+            # Convert to jittor tensors and ensure proper batch dimension
+            if isinstance(img, np.ndarray):
+                img = jt.array(img)
+            if isinstance(gt_mask, np.ndarray):
+                gt_mask = jt.array(gt_mask)
+            
+            # Add batch dimension if missing
+            if len(img.shape) == 3:
+                img = img.unsqueeze(0)
+            if len(gt_mask.shape) == 3:
+                gt_mask = gt_mask.unsqueeze(0)
+                
             if img.shape[0] == 1:
                 continue
-            pred = net.forward(img)
+            pred = net.execute(img)
             loss = net.loss(pred, gt_mask)
             total_loss_epoch.append(loss.numpy())
 
@@ -152,16 +210,38 @@ def test_with_save(save_pth, idx_epoch, total_loss_list, net_state_dict):
 
     for idx_iter, (img, gt_mask, size, _) in enumerate(test_loader):
         with jt.no_grad():
-            img = jt.array(img)
-            pred = net.forward(img)
+            # Convert to jittor tensors and ensure proper batch dimension
+            if isinstance(img, np.ndarray):
+                img = jt.array(img)
+            if isinstance(gt_mask, np.ndarray):
+                gt_mask = jt.array(gt_mask)
+            
+            # Add batch dimension if missing
+            if len(img.shape) == 3:
+                img = img.unsqueeze(0)
+            if len(gt_mask.shape) == 3:
+                gt_mask = gt_mask.unsqueeze(0)
+                
+            pred = net.execute(img)
             pred = pred[:, :, :size[0], :size[1]]
 
         gt_mask = gt_mask[:, :, :size[0], :size[1]]
 
-        eval_mIoU.update((pred > opt.threshold).numpy(), gt_mask)
-        eval_PD_FA.update(pred[0, 0, :, :].numpy(), gt_mask[0, 0, :, :].numpy(), size)
-        eval_mIoU_P_R_F.update(labels=gt_mask[0, 0, :, :].numpy(),
-                               preds=pred[0, 0, :, :].numpy())
+        # 确保pred和gt_mask都是Jittor张量，然后转换为numpy
+        if isinstance(pred, jt.Var):
+            pred_np = pred.numpy()
+        else:
+            pred_np = pred
+            
+        if isinstance(gt_mask, jt.Var):
+            gt_mask_np = gt_mask.numpy()
+        else:
+            gt_mask_np = gt_mask
+            
+        eval_mIoU.update((pred_np > opt.threshold), gt_mask_np)
+        eval_PD_FA.update(pred_np[0, 0, :, :], gt_mask_np[0, 0, :, :], size)
+        eval_mIoU_P_R_F.update(labels=gt_mask_np[0, 0, :, :],
+                               preds=pred_np[0, 0, :, :])
 
     Ying_pixAcc, Ying_mIoU = eval_mIoU.get()
     pd, fa = eval_PD_FA.get()

@@ -1,4 +1,5 @@
 import numpy as np
+import jittor as jt
 
 class mIoU():
     
@@ -7,8 +8,12 @@ class mIoU():
         self.reset()
 
     def update(self, preds, labels):
-        # print('come_ininin')
-
+        # 确保输入是numpy数组
+        if isinstance(preds, jt.Var):
+            preds = preds.numpy()
+        if isinstance(labels, jt.Var):
+            labels = labels.numpy()
+            
         correct, labeled = batch_pix_accuracy(preds, labels)
         inter, union = batch_intersection_union(preds, labels)
         self.total_correct += correct
@@ -20,7 +25,7 @@ class mIoU():
         pixAcc = 1.0 * self.total_correct / (np.spacing(1) + self.total_label)
         IoU = 1.0 * self.total_inter / (np.spacing(1) + self.total_union)
         mIoU = IoU.mean()
-        return float(pixAcc), mIoU
+        return float(pixAcc), float(mIoU)
 
     def reset(self):
         self.total_inter = 0
@@ -29,36 +34,48 @@ class mIoU():
         self.total_label = 0
 
 def batch_pix_accuracy(output, target):   
+    # 确保都是numpy数组
+    if isinstance(output, jt.Var):
+        output = output.numpy()
+    if isinstance(target, jt.Var):
+        target = target.numpy()
+        
     if len(target.shape) == 3:
-        target = np.expand_dims(target.float(), axis=1)
+        target = np.expand_dims(target.astype(np.float32), axis=1)
     elif len(target.shape) == 4:
-        target = target.float()
+        target = target.astype(np.float32)
     else:
         raise ValueError("Unknown target dimension")
 
     assert output.shape == target.shape, "Predict and Label Shape Don't Match"
-    predict = (output > 0).float()
-    pixel_labeled = (target > 0).float().sum()
-    pixel_correct = (((predict == target).float())*((target > 0)).float()).sum()
+    predict = (output > 0).astype(np.float32)
+    pixel_labeled = (target > 0).astype(np.float32).sum()
+    pixel_correct = (((predict == target).astype(np.float32))*((target > 0)).astype(np.float32)).sum()
     assert pixel_correct <= pixel_labeled, "Correct area should be smaller than Labeled"
     return pixel_correct, pixel_labeled
     
 def batch_intersection_union(output, target):
+    # 确保都是numpy数组
+    if isinstance(output, jt.Var):
+        output = output.numpy()
+    if isinstance(target, jt.Var):
+        target = target.numpy()
+        
     mini = 1
     maxi = 1
     nbins = 1
-    predict = (output > 0).float()
+    predict = (output > 0).astype(np.float32)
     if len(target.shape) == 3:
-        target = np.expand_dims(target.float(), axis=1)
+        target = np.expand_dims(target.astype(np.float32), axis=1)
     elif len(target.shape) == 4:
-        target = target.float()
+        target = target.astype(np.float32)
     else:
         raise ValueError("Unknown target dimension")
-    intersection = predict * ((predict == target).float())
+    intersection = predict * ((predict == target).astype(np.float32))
 
-    area_inter, _  = np.histogram(intersection.cpu(), bins=nbins, range=(mini, maxi))
-    area_pred,  _  = np.histogram(predict.cpu(), bins=nbins, range=(mini, maxi))
-    area_lab,   _  = np.histogram(target.cpu(), bins=nbins, range=(mini, maxi))
+    area_inter, _  = np.histogram(intersection, bins=nbins, range=(mini, maxi))
+    area_pred,  _  = np.histogram(predict, bins=nbins, range=(mini, maxi))
+    area_lab,   _  = np.histogram(target, bins=nbins, range=(mini, maxi))
     area_union     = area_pred + area_lab - area_inter
 
     assert (area_inter <= area_union).all(), \

@@ -32,11 +32,18 @@ class SegmentationMetricTPFNFP(object):
                 self.total_fn += fn
             return
 
+        # 确保输入都是numpy数组
         if isinstance(preds, jt.Var):
             preds = (preds.numpy() > 0).astype('int64')  # P
+        elif isinstance(preds, np.ndarray):
+            preds = ((preds / (np.max(preds) + 1e-8)) > 0.5).astype('int64')  # P
+            
+        if isinstance(labels, jt.Var):
             labels = labels.numpy().astype('int64')  # T
-            evaluate_worker(self, labels, preds)
-        elif isinstance(preds, (list, tuple)):
+        elif isinstance(labels, np.ndarray):
+            labels = (labels / (np.max(labels) + 1e-8)).astype('int64')  # T
+            
+        if isinstance(preds, (list, tuple)):
             threads = [threading.Thread(target=evaluate_worker,
                                         args=(self, label, pred),
                                         )
@@ -45,13 +52,8 @@ class SegmentationMetricTPFNFP(object):
                 thread.start()
             for thread in threads:
                 thread.join()
-        #elif preds.dtype == numpy.uint8:
-        elif isinstance(preds, np.ndarray):
-            preds = ((preds / np.max(preds)) > 0.5).astype('int64')  # P
-            labels = (labels / np.max(labels)).astype('int64')  # T
-            evaluate_worker(self, labels, preds)
         else:
-            raise NotImplemented
+            evaluate_worker(self, labels, preds)
 
     def get_all(self):
         return self.total_tp, self.total_fp, self.total_fn

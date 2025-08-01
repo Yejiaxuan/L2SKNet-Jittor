@@ -35,4 +35,5 @@ images/
 masks/
 
 log/
+training_logs/
 result/

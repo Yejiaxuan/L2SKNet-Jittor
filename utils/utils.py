@@ -123,6 +123,34 @@ def get_img_norm_cfg(dataset_name, dataset_dir):
     return img_norm_cfg
 
 
+class MultiStepLR:
+    def __init__(self, optimizer, milestones, gamma=0.1):
+        self.optimizer = optimizer
+        self.milestones = milestones
+        self.gamma = gamma
+        self.current_epoch = 0
+        self.base_lr = optimizer.lr
+        
+    def step(self):
+        self.current_epoch += 1
+        if self.current_epoch in self.milestones:
+            new_lr = self.optimizer.lr * self.gamma
+            self.optimizer.lr = new_lr
+            print(f"Learning rate updated to: {new_lr}")
+
+class CosineAnnealingLR:
+    def __init__(self, optimizer, T_max, eta_min=0):
+        self.optimizer = optimizer
+        self.T_max = T_max
+        self.eta_min = eta_min
+        self.current_epoch = 0
+        self.base_lr = optimizer.lr
+        
+    def step(self):
+        self.current_epoch += 1
+        new_lr = self.eta_min + (self.base_lr - self.eta_min) * (1 + math.cos(math.pi * self.current_epoch / self.T_max)) / 2
+        self.optimizer.lr = new_lr
+
 def get_optimizer(net, optimizer_name, scheduler_name, optimizer_settings, scheduler_settings):
     if optimizer_name == 'Adam':
         optimizer = jt.optim.Adam(net.parameters(), lr=optimizer_settings['lr'])
@@ -131,14 +159,12 @@ def get_optimizer(net, optimizer_name, scheduler_name, optimizer_settings, sched
     elif optimizer_name == 'SGD':
         optimizer = jt.optim.SGD(net.parameters(), lr=optimizer_settings['lr'])
 
-    # Jittor doesn't have built-in schedulers, so we'll implement basic ones
+    # Create scheduler objects
     scheduler = None
     if scheduler_name == 'MultiStepLR':
-        # You may need to implement MultiStepLR manually or use a custom scheduler
-        scheduler = {'type': 'MultiStepLR', 'milestones': scheduler_settings['step'], 'gamma': scheduler_settings['gamma']}
+        scheduler = MultiStepLR(optimizer, scheduler_settings['step'], scheduler_settings['gamma'])
     elif scheduler_name == 'CosineAnnealingLR':
-        # You may need to implement CosineAnnealingLR manually or use a custom scheduler
-        scheduler = {'type': 'CosineAnnealingLR', 'T_max': scheduler_settings['epochs'], 'eta_min': scheduler_settings['min_lr']}
+        scheduler = CosineAnnealingLR(optimizer, scheduler_settings['epochs'], scheduler_settings.get('min_lr', 0))
 
     return optimizer, scheduler
 

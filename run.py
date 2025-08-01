@@ -44,9 +44,7 @@ def run_training_with_progress(cmd, model, dataset):
 def run_training():
     models = [
         'L2SKNet_UNet',
-        'L2SKNet_FPN', 
-        'L2SKNet_1D_UNet',
-        'L2SKNet_1D_FPN'
+        'L2SKNet_FPN'
     ]
     
     datasets = [
