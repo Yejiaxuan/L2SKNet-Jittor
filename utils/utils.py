@@ -1,6 +1,7 @@
 import jittor as jt
 import numpy as np
 from PIL import Image
+from jittor import transform
 import random
 import matplotlib.pyplot as plt
 import os
@@ -33,7 +34,7 @@ def weights_init_kaiming(m):
     elif classname.find('Linear') != -1:
         jt.init.kaiming_normal_(m.weight, a=0, mode='fan_in')
     elif classname.find('BatchNorm') != -1:
-        jt.init.gauss_(m.weight, mean=1.0, std=0.02)
+        jt.init.normal_(m.weight, 1.0, 0.02)
         jt.init.constant_(m.bias, 0.0)
 
 
@@ -46,8 +47,8 @@ class Get_gradient_nopadding(nn.Module):
         kernel_h = [[0, 0, 0],
                     [-1, 0, 1],
                     [0, 0, 0]]
-        kernel_h = jt.array(kernel_h).unsqueeze(0).unsqueeze(0).float32()
-        kernel_v = jt.array(kernel_v).unsqueeze(0).unsqueeze(0).float32()
+        kernel_h = jt.array(kernel_h, dtype=jt.float32).unsqueeze(0).unsqueeze(0)
+        kernel_v = jt.array(kernel_v, dtype=jt.float32).unsqueeze(0).unsqueeze(0)
         self.weight_h = kernel_h
         self.weight_v = kernel_v
 
@@ -131,14 +132,12 @@ def get_optimizer(net, optimizer_name, scheduler_name, optimizer_settings, sched
     elif optimizer_name == 'SGD':
         optimizer = jt.optim.SGD(net.parameters(), lr=optimizer_settings['lr'])
 
-    # Jittor doesn't have built-in schedulers, so we'll implement basic ones
-    scheduler = None
     if scheduler_name == 'MultiStepLR':
-        # You may need to implement MultiStepLR manually or use a custom scheduler
-        scheduler = {'type': 'MultiStepLR', 'milestones': scheduler_settings['step'], 'gamma': scheduler_settings['gamma']}
+        scheduler = jt.lr_scheduler.MultiStepLR(optimizer, milestones=scheduler_settings['step'],
+                                                gamma=scheduler_settings['gamma'])
     elif scheduler_name == 'CosineAnnealingLR':
-        # You may need to implement CosineAnnealingLR manually or use a custom scheduler
-        scheduler = {'type': 'CosineAnnealingLR', 'T_max': scheduler_settings['epochs'], 'eta_min': scheduler_settings['min_lr']}
+        scheduler = jt.lr_scheduler.CosineAnnealingLR(optimizer, T_max=scheduler_settings['epochs'],
+                                                      eta_min=scheduler_settings['min_lr'])
 
     return optimizer, scheduler
 
