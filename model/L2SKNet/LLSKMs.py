@@ -40,12 +40,12 @@ class LLSKM(nn.Module):
         # Extend the $1\times 1$ to $k\times k$
         kernel_w2 = kernel_w1[:, :, None, None]
         # Filter the feature with $\textbf{W}_{sum}$
-        out_center = jt.nn.conv2d(input=x, weight=kernel_w2, bias=self.conv.bias, stride=self.conv.stride,
+        out_center = jt.nn.conv2d(x, weight=kernel_w2, bias=self.conv.bias, stride=self.conv.stride,
                                   padding=0, groups=self.conv.groups)
         # Filter the feature with $\textbf{W}_{c}$      
         center_w1 = self.conv.weight[:, :, self.kernel_size // 2, self.kernel_size // 2]
         center_w2 = center_w1[:, :, None, None]
-        out_offset = jt.nn.conv2d(input=x, weight=center_w2, bias=self.conv.bias, stride=self.conv.stride,
+        out_offset = jt.nn.conv2d(x, weight=center_w2, bias=self.conv.bias, stride=self.conv.stride,
                                   padding=0, groups=self.conv.groups)
         
         # The output feature of our Diff LSFM block
@@ -73,12 +73,12 @@ class LLSKM_d(nn.Module):
         # Extend the $1\times 1$ to $k\times k$
         kernel_w2 = kernel_w1[:, :, None, None]
         # Filter the feature with $\textbf{W}_{sum}$
-        out_center = jt.nn.conv2d(input=x, weight=kernel_w2, bias=self.conv.bias, stride=self.conv.stride,
+        out_center = jt.nn.conv2d(x, weight=kernel_w2, bias=self.conv.bias, stride=self.conv.stride,
                                   padding=0, groups=self.conv.groups)
         # Filter the feature with $\textbf{W}_{c}$
         center_w1 = self.conv.weight[:, :, self.kernel_size // 2, self.kernel_size // 2]
         center_w2 = center_w1[:, :, None, None]
-        out_offset = jt.nn.conv2d(input=x, weight=center_w2, bias=self.conv.bias, stride=self.conv.stride,
+        out_offset = jt.nn.conv2d(x, weight=center_w2, bias=self.conv.bias, stride=self.conv.stride,
                                   padding=0, groups=self.conv.groups)
 
         # The output feature of our Diff LSFM block
@@ -114,12 +114,12 @@ class LLSKM_1D(nn.Module):
 
         nxn_kernel_w1 = nxn_kernel.sum(2).sum(2)
         nxn_kernel_w2 = nxn_kernel_w1[:, :, None, None]
-        out_center = jt.nn.conv2d(input=x, weight=nxn_kernel_w2, bias=self.conv.bias, stride=self.conv.stride,
+        out_center = jt.nn.conv2d(x, weight=nxn_kernel_w2, bias=self.conv.bias, stride=self.conv.stride,
                                   padding=0, groups=self.conv.groups)
 
         nxn_center_w1 = nxn_kernel[:, :, self.kernel_size // 2, self.kernel_size // 2]
         nxn_center_w2 = nxn_center_w1[:, :, None, None]
-        out_offset = jt.nn.conv2d(input=x, weight=nxn_center_w2, bias=self.conv.bias, stride=self.conv.stride,
+        out_offset = jt.nn.conv2d(x, weight=nxn_center_w2, bias=self.conv.bias, stride=self.conv.stride,
                                   padding=0, groups=self.conv.groups)
 
         out = out_center - out_nx1_normal + theta * out_offset
