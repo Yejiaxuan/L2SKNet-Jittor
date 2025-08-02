@@ -226,10 +226,10 @@ def test_with_save(save_pth, idx_epoch, total_loss_list, net_state_dict):
 
         gt_mask = gt_mask[:, :, :size[0], :size[1]]
 
-        eval_mIoU.update((pred > opt.threshold).data, gt_mask)
-        eval_PD_FA.update(pred[0, 0, :, :].data, gt_mask[0, 0, :, :].data, size)
-        eval_mIoU_P_R_F.update(labels=gt_mask[0, 0, :, :].data,
-                               preds=pred[0, 0, :, :].data)
+        eval_mIoU.update((pred > opt.threshold), gt_mask)
+        eval_PD_FA.update(pred[0, 0, :, :].numpy(), gt_mask[0, 0, :, :].numpy(), size)
+        eval_mIoU_P_R_F.update(labels=gt_mask[0, 0, :, :],
+                               preds=pred[0, 0, :, :])
 
     Ying_pixAcc, Ying_mIoU = eval_mIoU.get()
     pd, fa = eval_PD_FA.get()

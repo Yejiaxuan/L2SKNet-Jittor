@@ -32,9 +32,9 @@ class mIoU():
 def batch_pix_accuracy(output, target):   
     # 统一转换为numpy数组进行处理
     if isinstance(output, jt.Var):
-        output = output.data
+        output = output.numpy()
     if isinstance(target, jt.Var):
-        target = target.data
+        target = target.numpy()
         
     if len(target.shape) == 3:
         target = np.expand_dims(target.astype(np.float32), axis=1)
@@ -58,9 +58,9 @@ def batch_intersection_union(output, target):
     
     # 统一转换为numpy数组进行处理
     if isinstance(output, jt.Var):
-        output = output.data
+        output = output.numpy()
     if isinstance(target, jt.Var):
-        target = target.data
+        target = target.numpy()
         
     predict = (output > 0).astype(np.float32)
     if len(target.shape) == 3:

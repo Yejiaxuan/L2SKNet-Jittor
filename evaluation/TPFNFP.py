@@ -33,8 +33,8 @@ class SegmentationMetricTPFNFP(object):
             return
 
         if isinstance(preds, jt.Var):
-            preds = (preds.data > 0).astype('int64')  # P
-            labels = labels.data.astype('int64')  # T
+            preds = (preds.numpy() > 0).astype('int64')  # P
+            labels = labels.numpy().astype('int64')  # T
             evaluate_worker(self, labels, preds)
         elif isinstance(preds, (list, tuple)):
             threads = [threading.Thread(target=evaluate_worker,
