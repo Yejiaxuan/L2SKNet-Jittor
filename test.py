@@ -127,7 +127,7 @@ def test():
         os.makedirs(matDir)
         
     for idx_iter, (img, gt_mask, size, iname) in enumerate(test_loader):
-        name = iname[0]
+        name = iname  # 由于batch_size=1，DataLoader直接返回字符串
         pngname = name + ".png"
         matname = name + '.mat'
         with jt.no_grad():
