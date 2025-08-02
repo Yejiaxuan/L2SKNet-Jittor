@@ -1,5 +1,5 @@
-import torch.utils.data as Data
-import torchvision.transforms as transforms
+import jittor as jt
+from jittor.dataset import Dataset
 
 from utils.datasets import *
 from PIL import Image, ImageOps, ImageFilter
@@ -16,7 +16,7 @@ from evaluation.TPFNFP import SegmentationMetricTPFNFP
 import argparse
 import time
 
-parser = argparse.ArgumentParser(description="PyTorch L2SKNet cal")
+parser = argparse.ArgumentParser(description="Jittor L2SKNet cal")
 parser.add_argument("--model_names", default='L2SKNet_UNet', type=str, nargs='+',
                     help="model_name: 'L2SKNet_UNet', 'L2SKNet_FPN', "
                          "'L2SKNet_1D_UNet', 'L2SKNet_1D_FPN'")
@@ -27,9 +27,10 @@ global opt
 opt = parser.parse_args()
 
 
-class Dataset_mat(Data.Dataset):
+class Dataset_mat(Dataset):
     def __init__(self, dataset, base_size=256, thre=0.5):
-
+        super(Dataset_mat, self).__init__()
+        
         self.base_size = base_size
         self.dataset = dataset
         if (dataset == 'NUDT-SIRST'):
@@ -51,9 +52,6 @@ class Dataset_mat(Data.Dataset):
         self.file_names = [s[:-4] for s in file_mat_names]
 
         self.thre = thre
-
-        self.mat_transform = transforms.Resize((base_size, base_size), interpolation=Image.BILINEAR)
-        self.mask_transform = transforms.Resize((base_size, base_size), interpolation=Image.NEAREST)
 
     def __getitem__(self, i):
         file_name = self.file_names[i]
@@ -106,7 +104,12 @@ def cal_fpr_tpr():
         rstImg, mask = dataset.__getitem__(i)
         size = rstImg.shape
         roc.update(pred=rstImg, label=mask)
-        eval_mIoU.update((torch.from_numpy(rstImg.reshape(1,1,baseSize, baseSize))>thre), torch.from_numpy(mask.reshape(1,1,baseSize, baseSize)))
+        
+        # 将numpy数组转换为jittor数组
+        rstImg_jt = jt.array(rstImg.reshape(1, 1, baseSize, baseSize))
+        mask_jt = jt.array(mask.reshape(1, 1, baseSize, baseSize))
+        
+        eval_mIoU.update((rstImg_jt > thre), mask_jt)
         eval_PD_FA.update(rstImg, mask, size)
         eval_mIoU_P_R_F.update(labels=mask, preds=rstImg)
 
@@ -122,7 +125,7 @@ def cal_fpr_tpr():
     opt.f.write('\n')
 
     save_dict = {'tpr': tpr, 'fpr': fpr}
-    scio.savemat(osp.join('./result', '{:s}_{:s}.mat'.format(opt.dataset_name,opt.model_name)), save_dict)
+    scio.savemat(osp.join('./result', '{:s}_{:s}.mat'.format(opt.dataset_name, opt.model_name)), save_dict)
 
 
 if __name__ == '__main__':
