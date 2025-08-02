@@ -137,7 +137,7 @@ def test():
             pred_out = pred.numpy().squeeze()
             pred_out_png = pred_out * 255
 
-        cv2.imwrite(imgDir + pngname, pred_out_png)
+        cv2.imwrite(imgDir + pngname, pred_out_png.astype('uint8'))
         scio.savemat(matDir + matname, {'T': pred_out})
 
 
