@@ -115,11 +115,11 @@ class LLSKM_1D(nn.Module):
         kernel_1xn_reshaped = kernel_1xn.squeeze(2)  # [C, C, K]
         kernel_nx1_reshaped = kernel_nx1.squeeze(3)  # [C, C, K]
         
-        # 通过外积重构nxn核
-        nxn_kernel = jt.zeros((kernel_1xn.shape[0], kernel_1xn.shape[1], self.kernel_size, self.kernel_size))
-        for i in range(self.kernel_size):
-            for j in range(self.kernel_size):
-                nxn_kernel[:, :, i, j] = kernel_nx1_reshaped[:, :, i] * kernel_1xn_reshaped[:, :, j]
+        # 通过bmm重构nxn核
+        nxn_kernel = jt.bmm(
+            kernel_nx1_reshaped.view(-1, self.kernel_size, 1),    # [C*C, K, 1]
+            kernel_1xn_reshaped.view(-1, 1, self.kernel_size)     # [C*C, 1, K]
+        ).view(kernel_1xn.shape[0], kernel_1xn.shape[1], self.kernel_size, self.kernel_size)
 
         # 计算sum kernel
         nxn_kernel_sum = nxn_kernel.sum(2).sum(2)  # [C, C]
