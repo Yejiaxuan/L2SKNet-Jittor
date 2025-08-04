@@ -8,7 +8,7 @@
 
 本仓库基于 [Jittor](https://github.com/Jittor/jittor) 框架复现了 **"Saliency at the Helm: Steering Infrared Small Target Detection with Learnable Kernels"** 论文中的 L2SKNet 模型，实现了四种网络变体，并与官方 [原作者 Pytorch 实现](https://github.com/fengyiwu98/L2SKNet) 进行了严格对齐验证。
 
-> **论文信息**: Wu, Fengyi et al. "Saliency at the Helm: Steering Infrared Small Target Detection with Learnable Kernels." IEEE Transactions on Geoscience and Remote Sensing (2024).
+> **论文信息**: [Wu, Fengyi et al. "Saliency at the Helm: Steering Infrared Small Target Detection with Learnable Kernels." IEEE Transactions on Geoscience and Remote Sensing (2024).](https://ieeexplore.ieee.org/document/10813615)
 
 >pytorch版本的复现源码以及结果对齐部分提到的pytorch版本的所有图像可在笔者上传的L2SKNet-Pytorch仓库中查看，
 >
@@ -28,10 +28,10 @@ cd L2SKNet-Jittor
 pip install -r requirements.txt
 
 # 3. 准备数据（将数据集放置到 data/ 目录）
-# 下载 NUDT-SIRST 或 IRSTD-1K 数据集
+# 下载 NUDT-SIRST 数据集
 
 # 4. 一键训练四个模型
-python run_train.py
+python run_train.pyf
 
 # 5. 评测所有模型
 python run_evaluate.py
@@ -112,12 +112,7 @@ AutoDL 镜像自带 `jittor==1.3.1`（CUDA 11.3），实际测试可直接运行
 
 ```
 data/
-├── NUDT-SIRST/
-│   ├── images/          # 原始红外图像
-│   ├── masks/           # 对应的标注掩码
-│   ├── train.txt        # 训练集文件列表
-│   └── test.txt         # 测试集文件列表
-└── IRSTD-1K/
+└── NUDT-SIRST/
     ├── images/          # 原始红外图像
     ├── masks/           # 对应的标注掩码
     ├── train.txt        # 训练集文件列表
@@ -160,7 +155,7 @@ python train_device0.py --model_name L2SKNet_UNet --dataset_name NUDT-SIRST --ba
 
 **参数说明：**
 - `--model_name`: 模型名称 (L2SKNet_UNet, L2SKNet_FPN, L2SKNet_1D_UNet, L2SKNet_1D_FPN)
-- `--dataset_name`: 数据集名称 (NUDT-SIRST, IRSTD-1K)
+- `--dataset_name`: 数据集名称 (NUDT-SIRST)
 - `--batch_size`: 批量大小 (默认8，RTX 3090推荐)
 - `--num_workers`: 数据加载线程数 (默认4)
 - `--epochs`: 训练轮数 (默认400)
@@ -215,9 +210,7 @@ python cal_metrics.py --model_name L2SKNet_UNet --dataset_name NUDT-SIRST
 ```
 logs/
 ├── NUDT-SIRST_L2SKNet_UNet_[timestamp].txt     # 训练日志
-├── NUDT-SIRST_L2SKNet_FPN_[timestamp].txt
-├── IRSTD-1K_L2SKNet_UNet_[timestamp].txt
-└── IRSTD-1K_L2SKNet_FPN_[timestamp].txt
+└── NUDT-SIRST_L2SKNet_FPN_[timestamp].txt
 ```
 
 **日志内容示例**：
@@ -340,6 +333,11 @@ Best Pd: 0.988360, Best Fa: 0.00000280
 - 默认 **Xavier** 初始化使两类卷积方差接近。  
 - 所有激活均 *非-inplace*，梯度路径完整 → 1D-FPN 与 FPN 收敛节奏保持同步。
 
+**(3) UNet 收敛更快的原因**  
+- **Encoder-Decoder + Skip Connection**：跳跃连接缩短了梯度回传路径，缓解梯度爆炸/消失，使参数更易优化。  
+- **特征分辨率一致**：UNet 逐层上采样，特征在早期即可回到高分辨率，损失对齐更充分，前期下降速度快。  
+- **参数量适中**：相较 FPN，UNet 结构更精简（≈-30% 参数量），同等 batch size 下梯度更新更稳定、收敛步长更大。
+
 **(3) 其它共性因素**  
 - Adam+MultiStepLR 超参完全一致，调度器阶梯点对齐。  
 - 数据增强及随机种子同步，整体曲线形态高度一致。  
@@ -380,7 +378,7 @@ results/
 
 ## 代码对齐说明
 
-本 Jittor 实现与 [官方 PyTorch 版本](https://github.com/fengyiwu98/L2SKNet) 保持高度一致：
+本 Jittor 实现与 官方 PyTorch 版本保持高度一致：
 
 1. **网络结构**: 完全复现 LLSKM (Learnable Large Separable Kernel Module) 核心组件
 2. **训练策略**: 相同的损失函数、优化器配置和学习率调度
