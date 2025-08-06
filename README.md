@@ -332,9 +332,9 @@ Best mIoU: 0.914508,when Epoch=39, Best fscore: 0.954535,when Epoch=39
 
 #### 2. 曲线差异成因深挖
 **(1) PyTorch 中 1D-FPN ≠ FPN 的根因**  
-- **主要原因**：model/L2SKNet/L2SKNet.py 中 1D 变体使用了 Dilated LLSKM，而 2D 变体使用了标准 LLSKM。
-- *卷积方差*：1D LLSKM 参数方差小 → 梯度大；2D Dilated LLSKM 方差大 → 梯度弱 → 下降慢。  
-- *In-place Activation*：FPN 残差/横向分支多，`LeakyReLU(inplace=True)` 在反向时覆盖中间结果，梯度回流受限，进一步放大两支网络的下降差异。
+- **卷积核设计**：FPN中LLSKM使用了膨胀卷积（Dilated Convolution），参数量更大且感受野更广，这导致梯度方差更大，使网络在小数据集上更难训练和收敛。
+- **特征融合方式**：FPN版本中过多LLSKM分支叠加（多尺度特征融合），导致输出方差被放大，对参数初始化和优化过程更敏感。
+- **有效参数/样本比例**：FPN参数量是1D版本的3-4倍，而NUDT-SIRST数据集样本量有限，导致在训练中容易出现过拟合或欠拟合现象。
 
 **(2) Jittor 中两条曲线一致的原因**  
 - 默认 **Xavier** 初始化使两类卷积方差接近。  
