@@ -7,8 +7,8 @@ class DataLoader:
         self.dataset = dataset
         self.batch_size = batch_size
         self.shuffle = shuffle
-        # num_workers在Jittor中暂不支持，保留接口兼容性
-  
+        self.num_workers = num_workers
+        
     def __iter__(self):
         indices = list(range(len(self.dataset)))
         if self.shuffle:
@@ -16,27 +16,57 @@ class DataLoader:
             
         for i in range(0, len(indices), self.batch_size):
             batch_indices = indices[i:i + self.batch_size]
-            batch_data = [self.dataset[idx] for idx in batch_indices]
+            batch_data = []
+            for idx in batch_indices:
+                batch_data.append(self.dataset[idx])
             
-            # 根据数据格式处理
-            if len(batch_data[0]) == 2:  # 训练数据 (img, mask)
-                if self.batch_size == 1:
-                    yield batch_data[0]
-                else:
-                    imgs = jt.stack([item[0] for item in batch_data], dim=0)
-                    masks = jt.stack([item[1] for item in batch_data], dim=0)
-                    yield (imgs, masks)
-                    
-            elif len(batch_data[0]) == 4:  # 测试数据 (img, mask, size, name)
-                if self.batch_size == 1:
-                    yield batch_data[0]
-                else:
-                    # 测试时通常batch_size=1，但为完整性处理多batch情况
-                    imgs = jt.stack([item[0] for item in batch_data], dim=0)
-                    masks = jt.stack([item[1] for item in batch_data], dim=0)
-                    yield (imgs, masks, batch_data[0][2], batch_data[0][3])
+            if len(batch_data) == 1:
+                # 单个样本的情况，直接返回（已经有正确的维度）
+                item = batch_data[0]
+                if len(item) == 2:  # 训练数据 (img, mask)
+                    img, mask = item[0], item[1]
+                    # 添加batch维度: (1, H, W) -> (1, 1, H, W)
+                    # 保持 (1, H, W) 的通道维，并添加 batch 维度 -> (1, 1, H, W)
+                    img = img.unsqueeze(0)
+                    mask = mask.unsqueeze(0)
+                    yield (img, mask)
+                elif len(item) == 4:  # 测试数据 (img, mask, size, name)
+                    img, mask, size, name = item[0], item[1], item[2], item[3]
+                    # 添加batch维度: (1, H, W) -> (1, 1, H, W)
+                    # 保持 (1, H, W) 的通道维，并添加 batch 维度 -> (1, 1, H, W)
+                    img = img.unsqueeze(0)
+                    mask = mask.unsqueeze(0)
+                    yield (img, mask, size, name)
             else:
-                raise ValueError(f"Unsupported data format with {len(batch_data[0])} elements")
+                # 多个样本的情况
+                if len(batch_data[0]) == 2:  # 训练数据
+                    batch_imgs = []
+                    batch_masks = []
+                    for item in batch_data:
+                        batch_imgs.append(item[0])  # Jittor张量 (1, H, W)
+                        batch_masks.append(item[1]) # Jittor张量 (1, H, W)
+                    
+                    # 使用Jittor的stack: (batch_size, 1, H, W)
+                    batch_imgs = jt.stack(batch_imgs, dim=0)
+                    batch_masks = jt.stack(batch_masks, dim=0)
+                    yield (batch_imgs, batch_masks)
+                    
+                elif len(batch_data[0]) == 4:  # 测试数据
+                    # 测试时通常batch_size=1，但为了完整性也处理
+                    batch_imgs = []
+                    batch_masks = []
+                    sizes = []
+                    names = []
+                    
+                    for item in batch_data:
+                        batch_imgs.append(item[0])
+                        batch_masks.append(item[1])
+                        sizes.append(item[2])
+                        names.append(item[3])
+                    
+                    batch_imgs = jt.stack(batch_imgs, dim=0)
+                    batch_masks = jt.stack(batch_masks, dim=0)
+                    yield (batch_imgs, batch_masks, sizes[0], names[0])  # 测试时通常只关心第一个
     
     def __len__(self):
         return (len(self.dataset) + self.batch_size - 1) // self.batch_size
