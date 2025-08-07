@@ -40,6 +40,7 @@ parser.add_argument("--scheduler_settings", default={'step': [200, 300], 'gamma'
 parser.add_argument("--threads", type=int, default=1, help="Number of threads for data loader to use")
 parser.add_argument("--threshold", type=float, default=0.5, help="Threshold for test")
 parser.add_argument("--seed", type=int, default=42, help="Threshold for test")
+parser.add_argument("--use_morphology", action='store_true', help="Use morphology preprocessing")
 
 global opt
 opt = parser.parse_args()
@@ -55,7 +56,7 @@ def train():
 
     train_loader = DataLoader(dataset=train_set, num_workers=opt.threads, batch_size=opt.batchSize, shuffle=True)
 
-    net = Net(model_name=opt.model_name)
+    net = Net(model_name=opt.model_name, use_morphology=opt.use_morphology)
     net.train()
 
     epoch_state = 0
@@ -121,7 +122,9 @@ def train():
                         % (idx_epoch + 1, total_loss_list[-1]))
             total_loss_epoch = []
 
-            save_pth = opt.save + '/' + opt.dataset_name + '/' + opt.model_name + '/' + str(idx_epoch + 1) + '.pth.tar'
+            # 根据是否使用形态学模块添加目录后缀
+            model_dir = opt.model_name + ('_morphology' if opt.use_morphology else '')
+            save_pth = opt.save + '/' + opt.dataset_name + '/' + model_dir + '/' + str(idx_epoch + 1) + '.pth.tar'
 
             test_with_save(save_pth, idx_epoch, total_loss_list, net.state_dict())
 
@@ -134,7 +137,7 @@ def test_with_save(save_pth, idx_epoch, total_loss_list, net_state_dict):
         raise NotImplementedError
     test_loader = DataLoader(dataset=test_set, num_workers=1, batch_size=1, shuffle=False)
 
-    net = Net(model_name=opt.model_name)
+    net = Net(model_name=opt.model_name, use_morphology=opt.use_morphology)
     net.load_state_dict(net_state_dict)
     net.eval()
 
@@ -209,7 +212,9 @@ if __name__ == '__main__':
             opt.model_name = model_name
             if not os.path.exists(opt.save):
                 os.makedirs(opt.save)
-            opt.f = open(opt.save + '/' + opt.dataset_name + '_' + opt.model_name + '_' +
+            # 根据是否使用形态学模块添加文件名后缀
+            model_suffix = opt.model_name + ('_morphology' if opt.use_morphology else '')
+            opt.f = open(opt.save + '/' + opt.dataset_name + '_' + model_suffix + '_' +
                          (time.ctime()).replace(' ', '_').replace(':', '_') + '.txt', 'w')
             print(opt.dataset_name + '\t' + opt.model_name)
             train()
@@ -221,3 +226,7 @@ if __name__ == '__main__':
 # python train_device0.py --model_names L2SKNet_UNet --dataset_names NUDT-SIRST
 # For multi model：
 # python train_device0.py --model_names L2SKNet_UNet L2SKNet_FPN --dataset_names NUDT-SIRST
+# For morphology model：
+# python train_device0.py --model_names L2SKNet_UNet --dataset_names NUDT-SIRST --use_morphology
+# For multi model with morphology model：
+# python train_device0.py --model_names L2SKNet_UNet L2SKNet_FPN --dataset_names NUDT-SIRST --use_morphology
