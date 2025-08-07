@@ -1,9 +1,6 @@
 import jittor as jt
 import jittor.nn as nn
 
-def logsumexp(x, dim, keepdims=False, keepdim=False):
-    return x.exp().sum(dim, keepdim or keepdims).log()
-jt.Var.logsumexp = logsumexp
 
 class LearnableThreshold(nn.Module):
     """可学习的软阈值模块，用于自适应特征筛选"""
@@ -19,13 +16,10 @@ class LearnableThreshold(nn.Module):
         x_flat = x.view(x.size(0), x.size(1), -1)
         max_val = x_flat.max(dim=2, keepdims=True)[0].unsqueeze(-1)
         
-        # 限制阈值范围，避免极值
-        dynamic_thresh = jt.sigmoid(self.threshold) * jt.clamp(max_val, 0.01, 1.0)
-        tau = 1.0 + 4.0 * jt.sigmoid(self.temperature_raw)  # 降低tau范围
-        
-        # 添加数值稳定性检查
-        diff = jt.clamp(x - dynamic_thresh, -10.0, 10.0)
-        gate = jt.sigmoid(tau * diff)
+        # 动态阈值：基于特征最大值的比例
+        dynamic_thresh = jt.sigmoid(self.threshold) * max_val
+        tau = 1.0 + 19.0 * jt.sigmoid(self.temperature_raw)
+        gate = jt.sigmoid(tau * (x - dynamic_thresh))
         return x * gate
 
 
