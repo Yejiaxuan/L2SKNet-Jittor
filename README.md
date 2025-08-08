@@ -4,7 +4,7 @@
 ![Python](https://img.shields.io/badge/Python-3.8-blue.svg)
 ![CUDA](https://img.shields.io/badge/CUDA-11.3-green.svg)
 
-本仓库基于 [Jittor](https://github.com/Jittor/jittor) 框架复现了 **"Saliency at the Helm: Steering Infrared Small Target Detection with Learnable Kernels"** 论文中的 L2SKNet 模型，实现了四种网络变体，并与官方 [原作者 Pytorch 实现](https://github.com/fengyiwu98/L2SKNet) 进行了严格对齐验证。并且还新增形态学后处理改进版本，在原有基础上进一步提升检测精度
+本仓库基于 [Jittor](https://github.com/Jittor/jittor) 框架复现了 **"Saliency at the Helm: Steering Infrared Small Target Detection with Learnable Kernels"** 论文中的 L2SKNet 模型，实现了四种网络变体，并与官方 [原作者 Pytorch 实现](https://github.com/fengyiwu98/L2SKNet) 进行了严格对齐验证。并且还新增**形态学处理改进版本**，在原有基础上进一步提升检测精度
 
 > **论文信息**: [Wu, Fengyi et al. "Saliency at the Helm: Steering Infrared Small Target Detection with Learnable Kernels." IEEE Transactions on Geoscience and Remote Sensing (2024).](https://ieeexplore.ieee.org/document/10813615)
 
