@@ -32,8 +32,8 @@ pip install -r requirements.txt
 python run_train.py
 
 # 5. 训练形态学改进版本（推荐）
-python train_device0.py --model_name L2SKNet_UNet_morphology --dataset_name NUDT-SIRST
-python train_device0.py --model_name L2SKNet_FPN_morphology --dataset_name NUDT-SIRST
+python train_device0.py --model_names L2SKNet_UNet --dataset_names NUDT-SIRST --use_morphology
+python train_device0.py --model_names L2SKNet_FPN --dataset_names NUDT-SIRST --use_morphology
 
 # 6. 评测所有模型
 python run_evaluate.py
@@ -148,10 +148,10 @@ python run_train.py
 
 ```bash
 # 训练形态学改进的UNet版本
-python train_device0.py --model_name L2SKNet_UNet_morphology --dataset_name NUDT-SIRST --epochs 400
+python train_device0.py --model_names L2SKNet_UNet --dataset_names NUDT-SIRST --use_morphology --nEpochs 400
 
 # 训练形态学改进的FPN版本  
-python train_device0.py --model_name L2SKNet_FPN_morphology --dataset_name NUDT-SIRST --epochs 400
+python train_device0.py --model_names L2SKNet_FPN --dataset_names NUDT-SIRST --use_morphology --nEpochs 400
 ```
 
 **形态学版本特点**：
@@ -168,15 +168,15 @@ python train_device0.py --model_name L2SKNet_FPN_morphology --dataset_name NUDT-
 
 ```bash
 # 训练单个模型
-python train_device0.py --model_name L2SKNet_UNet --dataset_name NUDT-SIRST --batch_size 8 --num_workers 4
+python train_device0.py --model_names L2SKNet_UNet --dataset_names NUDT-SIRST --batchSize 8 --threads 4
 ```
 
 **参数说明：**
-- `--model_name`: 模型名称 (L2SKNet_UNet, L2SKNet_FPN, L2SKNet_1D_UNet, L2SKNet_1D_FPN, L2SKNet_UNet_morphology, L2SKNet_FPN_morphology)
-- `--dataset_name`: 数据集名称 (NUDT-SIRST)
-- `--batch_size`: 批量大小 (默认8，RTX 3090推荐)
-- `--num_workers`: 数据加载线程数 (默认4)
-- `--epochs`: 训练轮数 (默认400，形态学版本推荐400)
+- `--model_names`: 模型名称列表 (L2SKNet_UNet, L2SKNet_FPN, L2SKNet_1D_UNet, L2SKNet_1D_FPN)
+- `--dataset_names`: 数据集名称列表 (NUDT-SIRST)
+- `--batchSize`: 批量大小 (默认8，RTX 3090推荐)
+- `--threads`: 数据加载线程数 (默认4)
+- `--nEpochs`: 训练轮数 (默认400，形态学版本推荐400)
 - `--lr`: 学习率 (默认0.001)
 
 ---
@@ -199,14 +199,14 @@ python loss_curves.py
 
 ```bash
 # 生成预测结果
-python test.py --model_name L2SKNet_UNet --dataset_name NUDT-SIRST
+python test.py --model_names L2SKNet_UNet --dataset_names NUDT-SIRST
 
 # 计算评价指标  
-python cal_metrics.py --model_name L2SKNet_UNet --dataset_name NUDT-SIRST
+python cal_metrics.py --model_names L2SKNet_UNet --dataset_names NUDT-SIRST
 
 # 测试形态学改进版本（推荐）
-python test.py --model_name L2SKNet_UNet_morphology --dataset_name NUDT-SIRST
-python cal_metrics.py --model_name L2SKNet_UNet_morphology --dataset_name NUDT-SIRST
+python test.py --model_names L2SKNet_UNet --dataset_names NUDT-SIRST --use_morphology
+python cal_metrics.py --model_names L2SKNet_UNet --dataset_names NUDT-SIRST --use_morphology
 ```
 
 **输出结果：**
@@ -279,8 +279,12 @@ Best mIoU: 0.914508,when Epoch=39, Best fscore: 0.954535,when Epoch=39
 #### 形态学改进效果分析
 
 **相比原版本的显著提升**：
-- **L2SKNet_UNet**: mIoU从0.9275→**0.9436** (+1.6%), F-score从0.9623→**0.9710** (+0.9%)
-- **L2SKNet_FPN**: mIoU从0.9345→**0.9387** (+0.4%), F-score从0.9662→**0.9684** (+0.2%)
+- **L2SKNet_UNet (PyTorch)**: mIoU从0.9275→**0.9436** (+1.6%), F-score从0.9623→**0.9710** (+0.9%)
+- **L2SKNet_UNet (Jittor)**: mIoU从0.9342→**0.9370** (+0.3%), F-score从0.9658→**0.9674** (+0.2%)
+- **L2SKNet_FPN (PyTorch)**: mIoU从0.9345→**0.9387** (+0.4%), F-score从0.9662→**0.9684** (+0.2%)
+- **L2SKNet_FPN (Jittor)**: mIoU从0.9375→**0.9349** (-0.3%), F-score从0.9677→**0.9662** (-0.2%)
+
+> 备注：由于 Jittor 1.3.1 缺少 `logsumexp`，形态学层改用 `max` 近似实现（见 `model/L2SKNet/morphology_net.py`），信息聚合能力受限，因此整体增益略低；待算子补齐后，预期可再提升约 1%~2% mIoU/F-score。
 
 **形态学改进的核心优势**：
 1. **边缘精细化**：通过形态学操作优化目标边界，减少边缘噪声
